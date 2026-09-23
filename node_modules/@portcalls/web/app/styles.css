@@ -1,0 +1,12 @@
+/* Tailwind v4 in production; hand-rolled tokens for the offline server (§16). */
+:root { --brand:#0e7490; --ok:#16a34a; --warn:#d97706; --bad:#dc2626; }
+body { font-family: system-ui, sans-serif; margin:0; display:flex; }
+header, aside { width: 220px; padding:16px; background:#0f172a; color:#fff; min-height:100vh; }
+header a, aside a { display:block; color:#cbd5e1; text-decoration:none; padding:6px 0; }
+main { flex:1; padding:24px; }
+.badge { padding:2px 8px; border-radius:9999px; font-size:12px; background:#e2e8f0; }
+.badge.in_progress { background:#fef3c7; color:var(--warn); }
+.badge.completed, .badge.closed { background:#dcfce7; color:var(--ok); }
+.badge.cancelled { background:#fee2e2; color:var(--bad); }
+table { border-collapse: collapse; width:100%; } th, td { border-bottom:1px solid #e2e8f0; padding:8px; text-align:left; }
+.dropzone { border:2px dashed #94a3b8; padding:32px; text-align:center; border-radius:8px; }
