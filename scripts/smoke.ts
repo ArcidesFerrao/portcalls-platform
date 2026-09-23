@@ -72,7 +72,7 @@ await test('outbox events flow to notification worker (zero-loss)', async () => 
     await c.portOps.transition(pc.id, 'close');
     assert.ok(c.db.outbox.length >= 2, 'events persisted transactionally');
     assert.ok(c.db.outbox.every(r => !r.publishedAt), 'nothing published until relay runs');
-    c.broker.subscribe('*', notificationHandler());
+    c.broker.subscribe('*', notificationHandler(c));
     const relay = new OutboxRelay(new MemOutbox(c.db), c.broker);
     const n = await relay.drainOnce(100);
     assert.ok(n >= 2, 'relay drained events');
@@ -160,7 +160,7 @@ await test('circuit breaker opens after failures; cache serves stale reads', asy
   await br.exec(() => Promise.resolve(1));
   assert.equal(br.current, 'closed');
   const cache = new MetadataCache<string>(100, () => clock);
-  cache.set('k', 'v'); clock = 140;
+  cache.set('k', 'v'); clock = 1400;
   assert.equal(cache.get('k'), undefined);
   assert.equal(cache.getStale('k'), 'v', 'stale read still available when upstream down');
 });

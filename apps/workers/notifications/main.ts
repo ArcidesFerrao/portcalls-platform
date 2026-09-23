@@ -17,11 +17,11 @@ export function notificationHandler(container?: Container): MessageHandler {
       const params = { email: 'ops@example.com', reference: 'DEMO', ...event.payload };
       switch (event.type) {
         case 'MilestoneOverdue':
-          c.notifications.dispatch('email', c.notifications.render('milestone_overdue', params as never)); break;
+          await c.notifications.dispatch('email', c.notifications.render('milestone_overdue', params as never)); break;
         case 'PortCallClosed':
-          c.notifications.dispatch('email', c.notifications.render('portcall_closed', params as never)); break;
+          await c.notifications.dispatch('email', c.notifications.render('portcall_closed', params as never)); break;
         case 'InvoicePaid':
-          c.notifications.dispatch('email', c.notifications.render('invoice_paid', params as never)); break;
+          await c.notifications.dispatch('email', c.notifications.render('invoice_paid', params as never)); break;
         default: return;
       }
       seen.add(record.id);
