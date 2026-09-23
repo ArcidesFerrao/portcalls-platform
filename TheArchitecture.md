@@ -1,245 +1,90 @@
-The architecture at the highest level
-PORTCALLS PLATFORM
+================================================================
+PORTCALLS — ARQUITETURA GERAL
+================================================================
+
+1.  DIVISÃO DE ALTO NÍVEL
+
+                         PORTCALLS
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+           PRODUCT       PLATFORM      INFRASTRUCTURE
+              │              │              │
+        Port Operations   Control Plane   Database
+        Documents         Onboarding      Queue
+        Finance           Licensing       Cache
+        Reporting         Billing         Storage
+        Notifications     Tenants         Observability
+
+2.  CONTROL PLANE vs DATA PLANE
+
+                    CONTROL PLANE                    DATA PLANE
+                    Evolure-owned                  Customer-specific
+                         │                               │
+          ┌──────────────┼──────────────┐    ┌───────────┼───────────┐
+          ▼              ▼              ▼    ▼           ▼           ▼
+
+    Tenants Billing Licensing Database Storage Integrations
+    Contracts Plans Provision PortCalls Documents SharePoint/M365
+    Support Payments Access
+    Usage Features
+
+3.  DOMÍNIO CENTRAL
+
+Vessel (entidade persistente)
 │
-┌───────────────┴───────────────┐
+│ 1:N
+▼
+PortCall (escala específica)
+│
+├── Process (1:N — pode haver múltiplos processos por escala)
 │ │
-CONTROL PLANE DATA PLANE
-Evolure-owned Customer-specific
+│ ├── Milestone
+│ │ status: pending | in_progress | cleared | overdue
+│ │ authority: Alfândega | Capitania | Sanidade | ...
 │ │
-┌──────────┼──────────┐ ┌─────────┼──────────┐
-│ │ │ │ │ │
-Accounts Billing Licensing Database Storage Integrations
-Tenants Plans Provision Data Files SharePoint
-Contracts Payments Access PortCalls Documents Microsoft 365
-Support Usage Features
-│
-└──────────────┬────────────────┘
-│
-PortCalls App
-│
-Customer Users
-
-This distinction is extremely useful.
-
-Control Plane:
-
-The infrastructure knows:
-
-- who the customer is
-- what plan they have
-- whether they have paid
-- how many users they have
-- which features they have
-- subscription status
-- license status
-- onboarding status
-- support status
-
-Data Plane:
-
-The customer's actual operational information lives here:
-
-- PortCalls
-- documents
-- operational records
-- users
-- company-specific configuration
-- SharePoint references
-
-For an enterprise customer, this data plane can even live entirely inside their infrastructure.
-
-2. Customer architecture
-
-For a SaaS customer:
-
-                     PORTCALLS CLOUD
-                           │
-                    ┌──────▼──────┐
-                    │ Application │
-                    └──────┬──────┘
-                           │
-                ┌──────────┴──────────┐
-                │                     │
-          Tenant Database        Integration Layer
-                │                     │
-                │                     ▼
-                │                 SharePoint
-                │                     │
-                │                     ▼
-                │                 Documents
-                │
-                ▼
-         PortCalls Data
-
-For an enterprise customer:
-
-                 CUSTOMER INFRASTRUCTURE
-
-        ┌───────────────────────────────────┐
-        │                                   │
-        │          PortCalls                │
-        │             │                     │
-        │      ┌──────┴──────┐              │
-        │      │             │              │
-        │   Database     Integration        │
-        │                     │              │
-        │                     ▼              │
-        │                 SharePoint        │
-        │                                   │
-        └───────────────────────────────────┘
-
-Same application.
-
-Different deployment model.
-
-3. SharePoint is not part of the core domain
-
-This is an important architectural principle.
-
-Your business model should not think:
-
-PortCall → SharePointFile
-
-It should think:
-
-PortCall → Document
-
-Then:
-
-Document
-│
-└── StorageProvider
-│
-├── SharePoint
-├── S3
-├── Azure Blob
-├── MinIO
-└── Other
-
-So your core application doesn't care where a document physically lives.
-
-                    DOCUMENT
-                       │
-               Storage Abstraction
-                       │
-          ┌────────────┼────────────┐
-          │            │            │
-     SharePoint       S3         MinIO
-
-For your current customer:
-
-Document
-↓
-SharePoint
-↓
-Existing shared library/folder
-
-For another customer:
-
-Document
-↓
-Azure Blob
-
-For an on-premise customer:
-
-Document
-↓
-MinIO / NAS / SharePoint
-
-That makes the platform considerably more reusable.
-
-4. The core domain
-
-The center of the system should be the Port Call, not users, documents or billing.
-
-I'd structure the domain approximately like this:
-
-PortCall
-│
-├── Vessel / Ship
+│ └── AuthorityClearance (1:1 com Milestone)
+│ requires: Document[]
 │
 ├── Client
-│
-├── Process
-│
-├── Milestones
-│
-├── Documents
-│
-├── Authority Allowances
-│
-├── Invoices
-│
-├── Activities
-│
-├── Comments
-│
-└── Audit History
+├── Invoice
+├── Activity
+├── Comment
+└── Document (anexado a Milestone ou Process)
 
-Then separate the commercial domain:
-
-Customer
-│
-├── Subscription
-├── Plan
-├── Contract
-├── License
-├── Billing
-└── Usage
-
-And identity:
-
-Identity
-│
-├── User
-├── Organization
-├── Role
-├── Permission
-└── Session
-
-These domains should interact through well-defined interfaces rather than becoming one giant database model.
-
-5. Domain architecture
-
-A modular architecture:
+4. ARQUITETURA MODULAR (BOUNDED CONTEXTS)
 
 PortCalls
 │
 ├── Identity
-│
-├── Organizations
+│ User, Organization, Role, Permission, Session
 │
 ├── Port Operations
-│ ├── PortCalls
-│ ├── Vessels
-│ ├── Clients
-│ ├── Milestones
-│ └── Processes
+│ Vessel, PortCall, Process, Milestone, AuthorityClearance, Client
 │
 ├── Documents
+│ Document, StorageAdapter
 │
 ├── Finance
-│ ├── Invoices
-│ └── Payments
+│ Invoice, Payment
 │
 ├── Notifications
 │
 ├── Reporting
 │
+├── Audit
+│ AuditEvent
+│
 ├── Integrations
-│ └── SharePoint
+│ SharePoint, Payments, Email/WhatsApp
 │
-├── Administration
+├── Control Plane
+│ Tenants, Billing, Licensing, Onboarding, Provisioning
 │
-├── Licensing
-│
-└── Billing
+└── Shared Kernel
+TenantContext, Outbox, DomainEvents
 
-This is much better than organizing the entire application around UI pages.
-
-6. Multi-tenancy
-
-For SaaS, every customer is an Organization/Tenant.
+5. MULTI-TENANCY E ISOLAMENTO
 
 Tenant
 │
@@ -248,605 +93,96 @@ Tenant
 ├── Clients
 ├── Documents
 ├── Invoices
-├── Settings
-└── Integrations
+└── Settings
 
-Every tenant-owned record contains a tenant boundary:
+USER → IDENTITY → TENANT MEMBERSHIP → AUTHORIZATION → TENANT DATA
 
-PortCall
-├── id
-├── tenantId
-├── ...
+Aplicação: filtro por tenantId em toda query +
+Base de dados: Row-Level Security (RLS)
 
-Same for:
+CREATE POLICY tenant_isolation ON portcalls
+USING (tenant_id = current_setting('app.tenant_id')::uuid);
 
-Document
-Invoice
-Client
-Milestone
-Activity
+        +
 
-Then the most important security rule in the entire platform becomes:
+Object storage: isolamento por tenant +
+(Enterprise) Database/Storage/Aplicação dedicados, sem redesign
 
-USER
-↓
-IDENTITY
-↓
-TENANT MEMBERSHIP
-↓
-AUTHORIZATION
-↓
-TENANT DATA
+6. AUTORIZAÇÃO (PERMISSÕES)
 
-A user must never be able to access data simply because they know another record's ID.
-
-7. Tenant isolation
-
-For SaaS, I would initially use:
-
-Shared application
-PortCalls
-│
-┌───────────┼───────────┐
-│ │ │
-Tenant A Tenant B Tenant C
-
-But enforce isolation at multiple levels:
-
-Application authorization +
-Database tenant filtering +
-Database-level policies where appropriate +
-Object-storage isolation
-
-For larger enterprise customers, you can later offer:
-
-Dedicated Database
-Dedicated Storage
-Dedicated Application
-
-without redesigning the product.
-
-8. Identity architecture
-
-Identity
-│
-├── Authentication
-│ "Who are you?"
-│
-└── Authorization
-"What are you allowed to do?"
-
-Then:
-
-User
-│
-└── Membership
-│
-├── Organization
-└── Role
-
-Example:
-
-John
-│
-└── ABC Shipping
-│
-└── Operations Manager
-
-This allows one person eventually to belong to multiple organizations.
-
-9. Authorization
-
-Don't hard-code:
-
-if user.role === "admin"
-
-everywhere.
-
-Use permissions:
-
-portcall:create
-portcall:read
-portcall:update
-portcall:close
-
-document:read
-document:upload
-document:delete
-
-invoice:read
-invoice:create
-
+portcall:create / read / update / close
+document:read / upload / delete
+invoice:read / create
 user:manage
 billing:manage
 settings:manage
 
-Roles become collections of permissions.
+Admin → _
+Operations → portcall:_, document:_
+Finance → invoice:_, document:read
+Viewer → \*.read
 
-Admin
-├── \*
-
-Operations
-├── portcall:_
-├── document:_
-
-Finance
-├── invoice:\*
-└── document:read
-
-Viewer
-└── \*.read
-
-This will save you a lot of pain when enterprise customers start asking for weird-but-reasonable permission structures.
-
-10. Document architecture
-
-This deserves its own subsystem.
+7.  DOCUMENT SERVICE
 
                   DOCUMENT SERVICE
                          │
              ┌───────────┴───────────┐
+             ▼                       ▼
+         Metadata                Storage Adapter
              │                       │
-         Metadata                Storage
-             │                       │
-        PostgreSQL             Storage Adapter
-                                     │
-                    ┌────────────────┼───────────────┐
-                    │                │               │
-               SharePoint          S3              MinIO
+        PostgreSQL      ┌────────────┼────────────┐
+                         ▼            ▼            ▼
+                    SharePoint       S3          MinIO
 
-The database stores:
-
-Document
-├── id
-├── tenantId
-├── entityType
-├── entityId
-├── filename
-├── mimeType
-├── size
-├── checksum
-├── storageProvider
-├── storageObjectId
-├── createdBy
-└── createdAt
-
-The actual file stays outside the database.
-
-11. SharePoint integration
-
-For a specific customer:
-
-PortCalls
-│
-▼
 Integration Service
 │
-▼
-Microsoft Graph
+├── Circuit Breaker (abre após N falhas consecutivas)
+├── Cache local de metadados (leitura mesmo com SharePoint em baixo)
+└── Fila de retry com idempotência
+
+Document
+├── id, tenantId
+├── entityType, entityId
+├── filename, mimeType, size, checksum
+├── storageProvider, storageObjectId
+└── createdBy, createdAt
+
+8. CONSISTÊNCIA ENTRE DOMÍNIOS (OUTBOX)
+
+Transação única:
+┌───────────────────────────────┐
+│ UPDATE portcall SET status=... │
+│ INSERT INTO outbox_events │
+└───────────────────────────────┘
 │
 ▼
-SharePoint
-│
-▼
-Existing Document Library
-
-The customer configures:
-
-SharePoint Site
-Document Library
-Root Folder
-
-But the system should ideally resolve those into stable identifiers:
-
-siteId
-driveId
-folderId
-
-rather than repeatedly depending on human-readable URLs.
-
-So configuration becomes:
-
-SharePointConnection
-├── tenantId
-├── provider
-├── siteId
-├── driveId
-├── rootFolderId
-└── credentialsReference
-
-This is considerably more robust.
-
-12. Don't store Microsoft credentials casually
-
-Never make the customer enter something like:
-
-username
-password
-
-and then store it in your database.
-
-Instead use an application identity / OAuth-based authorization mechanism appropriate to the customer's Microsoft 365 environment.
-
-The architecture should look like:
-
-PortCalls
-│
-▼
-Identity / Credential Manager
-│
-▼
-Microsoft Authorization
-│
-▼
-Graph API
-│
-▼
-SharePoint
-
-Secrets should be encrypted and preferably kept in a dedicated secret-management system rather than ordinary application tables.
-
-13. API architecture
-
-I'd use an API-first internal architecture even if the first UI is a web application.
-
-                 Client Applications
-                 │        │        │
-                 ▼        ▼        ▼
-               Web      Mobile    API
-                 │        │        │
-                 └────┬───┴────────┘
-                      ▼
-                 API Gateway
-                      │
-        ┌─────────────┼─────────────┐
-        ▼             ▼             ▼
-
-Port Calls Documents Identity
-│ │
-▼ ▼
-Database Storage
-
-This gives me a future path toward:
-
-Mobile app
-Customer integrations
-Partner API
-Automation
-AI
-
-without rebuilding the core.
-
-14. Synchronous vs asynchronous work
-
-This is critical for making the platform feel fast.
-
-Don't make the user wait for everything.
-
-Synchronous
-
-Things that should happen immediately:
-
-Create PortCall
-Edit PortCall
-Change status
-Read dashboard
-Read details
-Asynchronous
-
-Things that should happen in the background:
-
-Large file upload
-SharePoint synchronization
-Email
-WhatsApp
-Report generation
-Document indexing
-Data imports
-Analytics
-Billing events
-Scheduled notifications
-
-Architecture:
-
-User
-│
-▼
-API
-│
-├── Immediate operation ───────► Database
-│
-└── Background operation
+Relay assíncrono
 │
 ▼
 Queue
 │
-┌─────┼─────┐
+┌────────┼────────┐
 ▼ ▼ ▼
-Worker Worker Worker
+Audit Invoice Notification
+
+Eventos: PortCallCreated, PortCallClosed, MilestoneCompleted,
+MilestoneOverdue, DocumentUploaded, DocumentDeleted,
+InvoiceCreated, InvoicePaid
+
+9. IDENTIDADE
+
+Identity
 │
-▼
-External systems
+├── Authentication "Quem és tu?"
+└── Authorization "O que podes fazer?"
 
-15. Event architecture
-
-I'd introduce domain events early, even if you don't initially build a huge event-driven system.
-
-For example:
-
-PortCallCreated
-PortCallUpdated
-PortCallClosed
-
-DocumentUploaded
-DocumentDeleted
-
-InvoiceCreated
-InvoicePaid
-
-MilestoneCompleted
-MilestoneOverdue
-
-Then:
-
-PortCallClosed
+User
 │
-├── Audit
-├── Notification
-├── Analytics
-└── Integration
+└── Membership
+├── Organization
+└── Role
 
-The PortCall service doesn't need to know that five other things happen after closing a process.
-
-16. Audit architecture
-
-Every important action should generate an audit event.
-
-AuditEvent
-├── id
-├── tenantId
-├── actorId
-├── action
-├── entityType
-├── entityId
-├── timestamp
-├── IP
-└── metadata
-
-Example:
-
-John Smith
-23 Sep 2026 10:42
-
-UPDATE_PORTCALL
-
-PortCall:
-PC-2026-0015
-
-Status:
-OPEN → CLOSED
-
-This becomes essential for enterprise customers.
-
-17. Billing architecture
-
-Billing should be independent from PortCall operations.
-
-Billing
-│
-├── Customer
-├── Plan
-├── Subscription
-├── Invoice
-├── Payment
-├── Entitlement
-└── Usage
-
-The application should ask:
-
-"Does this tenant have permission to use feature X?"
-
-rather than:
-
-"Is this customer on the €299 plan?"
-
-That's a subtle but very important architectural difference.
-
-18. Entitlements
-
-Example:
-
-Tenant
-│
-▼
-Subscription
-│
-▼
-Entitlements
-│
-├── portcalls
-├── users
-├── billing
-├── reports
-├── api
-├── integrations
-└── advanced_analytics
-
-Then:
-
-€99 plan
-↓
-basic entitlements
-
-€299 plan
-↓
-professional entitlements
-
-€799 plan
-↓
-enterprise entitlements
-
-On-premise licenses can use exactly the same entitlement system.
-
-19. Commercial platform architecture
-
-The sales process you described should actually be its own domain.
-
-Sales
-│
-├── Lead
-├── Opportunity
-├── Demo
-├── Qualification
-├── Proposal
-├── Contract
-└── Customer
-
-Then:
-
-Customer
-│
-├── Subscription
-├── Tenant
-├── License
-└── Onboarding
-
-This means you can eventually manage the entire PortCalls business from an internal admin platform.
-
-20. Onboarding engine
-
-Instead of manually configuring every customer, build an onboarding state machine.
-
-LEAD
-↓
-QUALIFIED
-↓
-DEMO
-↓
-PROPOSAL
-↓
-ACCEPTED
-↓
-PAYMENT_PENDING
-↓
-PAID
-↓
-PROVISIONING
-↓
-CONFIGURATION
-↓
-INTEGRATION
-↓
-USER_SETUP
-↓
-TRAINING
-↓
-READY
-↓
-LIVE
-
-Every state has required conditions.
-
-For example:
-
-PROVISIONING
-│
-├── Tenant created
-├── Database ready
-└── Subscription active
-
-CONFIGURATION
-│
-├── Company configured
-└── SharePoint connected
-
-READY
-│
-├── Admin created
-├── Users created
-├── Integration tested
-└── Training completed
-
-This prevents onboarding from becoming a collection of WhatsApp messages and spreadsheets.
-
-21. Provisioning
-
-When payment succeeds:
-
-Payment Confirmed
-│
-▼
-Provisioning Service
-│
-├── Create Tenant
-├── Create Environment
-├── Create Admin
-├── Create Entitlements
-├── Initialize Configuration
-└── Create Onboarding
-
-Then the customer receives:
-
-"Your PortCalls environment is ready."
-
-with a setup link.
-
-22. SaaS vs On-Premise
-
-The beautiful part is that the business architecture stays the same.
-
-SaaS
-Evolure
-│
-├── PortCalls Application
-├── Control Plane
-├── Customer Tenant
-├── Database
-└── Integration
-↓
-Customer SharePoint
-
-On-Premise
-Customer
-│
-├── PortCalls Application
-├── Database
-└── Integration
-↓
-Customer SharePoint
-
-The control plane can remain outside the customer's environment for:
-
-license management
-subscription management
-updates
-support
-
-or, for extremely sensitive customers, those capabilities can be packaged differently.
-
-23. On-premise licensing
-
-I would make the license a signed capability document.
-
-Conceptually:
-
-License
-├── customerId
-├── product
-├── deploymentType
-├── issuedAt
-├── expiresAt
-├── maxUsers
-├── features
-└── signature
-
-The application verifies the signature using a public key.
-
-The private signing key never exists in the customer installation.
-
-24. Security architecture
-
-I'd design around zero trust rather than "the customer is inside our network, therefore everything is trusted."
+10. SEGURANÇA (ZERO TRUST)
 
 Every request
 │
@@ -868,189 +204,107 @@ Execute
 ▼
 Audit
 
-And:
+Encryption in transit / at rest, secret management,
+least privilege, rate limiting, CSRF protection,
+input/file validation, malware scanning, backup
 
-Encryption in transit
-Encryption at rest
-Secret management
-Least privilege
-Tenant isolation
-Rate limiting
-CSRF protection where applicable
-Secure headers
-Input validation
-File validation
-Malware scanning where required
-Audit logging
-Backup
-Restore testing 25. File security
+11. UPLOAD DE FICHEIROS
 
-Because PortCalls handles business documents, I'd have:
+Upload → Validate MIME → Validate extension → Validate size
+→ Safe storage identifier → Malware scan (opcional)
+→ Store → Create metadata
 
-Upload
-↓
-Validate MIME
-↓
-Validate extension
-↓
-Validate size
-↓
-Generate safe storage identifier
-↓
-Optional malware scan
-↓
-Store
-↓
-Create metadata
+12. LICENCIAMENTO (ON-PREMISE)
 
-Never trust:
+License
+├── customerId, product, deploymentType
+├── issuedAt, expiresAt
+├── gracePeriodDays
+├── renewalPolicy: auto | manual
+├── maxUsers, features
+└── signature (verificada com chave pública; chave privada nunca sai do Evolure)
 
-invoice.pdf
-../../something
-evil.exe
+ACTIVE → EXPIRING_SOON → GRACE_PERIOD (offline) → EXPIRED (read-only) → REVOKED
 
-just because the filename says so.
+13. ENTITLEMENTS
 
-26. Database architecture
+Tenant → Subscription → Entitlements
+├── portcalls
+├── users
+├── reports
+├── api
+├── integrations
+└── advanced_analytics
 
-I would not make the database a giant collection of unrelated tables.
+€99 → basic | €299 → professional | €799 → enterprise
+(mesmo sistema para licenças on-premise)
 
-Use bounded domains:
+14. ONBOARDING (STATE MACHINE)
 
-Identity
-Organizations
-Operations
-Documents
-Finance
-Billing
-Audit
-Integrations
-Notifications
+LEAD → QUALIFIED → DEMO → PROPOSAL → ACCEPTED → PAYMENT_PENDING
+→ PAID → PROVISIONING → CONFIGURATION → INTEGRATION
+→ USER_SETUP → TRAINING → READY → LIVE
 
-Conceptually:
+PROVISIONING: Tenant criado, DB pronta, subscrição ativa
+CONFIGURATION: Empresa configurada, SharePoint ligado
+READY: Admin criado, utilizadores criados, integração testada, treino concluído
 
-                    DATABASE
-                       │
-       ┌───────────────┼────────────────┐
-       │               │                │
-    Identity       Operations        Documents
-       │               │                │
-    Users          PortCalls         Metadata
-    Roles          Milestones
-    Tenants        Clients
-                       │
-                 ┌─────┴─────┐
-                 │           │
-              Finance      Audit
+15. PROVISIONAMENTO
 
-27. Caching
-
-Not everything needs to hit PostgreSQL.
-
-Cache things such as:
-
-Tenant configuration
-Feature entitlements
-Dashboard aggregates
-Reference data
-Integration metadata
-
-But don't prematurely cache transactional data.
-
-The rule should be:
-
-Database is the source of truth; cache is an optimization.
-
-28. Dashboard architecture
-
-The dashboard should not calculate everything from thousands of PortCalls every time the user opens it.
-
-Eventually:
-
-PortCalls
+Payment Confirmed
 │
 ▼
-Events
+Provisioning Service
 │
-▼
-Analytics/Aggregation
+├── Create Tenant
+├── Create Environment
+├── Create Admin
+├── Create Entitlements
+├── Initialize Configuration
+└── Create Onboarding
+
+16. SAAS vs ON-PREMISE
+
+SaaS: On-Premise:
+Evolure Customer Infrastructure
+│ │
+├── PortCalls Application ├── PortCalls Application
+├── Control Plane ├── Database
+├── Customer Tenant └── Integration → SharePoint
+├── Database
+└── Integration → Customer SharePoint
+
+(Control plane permanece fora do ambiente do cliente:
+licenciamento, subscrição, updates, suporte)
+
+17. CRM / VENDAS (EXTERNO)
+
+CRM externo (HubSpot / Pipedrive)
 │
-▼
-Dashboard Metrics
+▼ webhook "contract signed"
+Provisioning Service (dentro do Control Plane)
 
-For example:
+18. TRABALHO SÍNCRONO vs ASSÍNCRONO
 
-Total Port Calls
-Open Port Calls
-Completed
-Overdue
-Average Processing Time
-Invoices Pending
+Síncrono: Create/Edit PortCall, mudança de estado, leitura de dashboard
+Assíncrono: upload grande, sync SharePoint, email/WhatsApp,
+geração de relatórios, indexação, imports, billing events
 
-can be maintained as optimized aggregates.
+User → API → Immediate operation ────────► Database
+└─ Background operation → Queue → Worker → External systems
 
-29. Observability
+19. OBSERVABILIDADE (COM SLOs)
 
-You need to know when something breaks before the customer tells you.
+SLO: 99.5% dos PortCalls criados em <500ms
+SLO: 99.9% disponibilidade da API (excluindo SharePoint)
+SLO: Sincronização SharePoint em <2min, p95
+SLO: Zero eventos de outbox perdidos (reconciliação diária)
 
-The platform should have:
+Logs, Metrics, Traces, Health Checks, Alerts
+Monitorar: latência API/DB, taxa de erro, falhas de queue,
+falhas SharePoint, falhas de upload, falhas de autenticação/pagamento
 
-Logs
-Metrics
-Traces
-Health Checks
-Alerts
-
-Monitor:
-
-API latency
-Database latency
-Error rate
-Queue failures
-SharePoint failures
-File upload failures
-Authentication failures
-Payment failures
-Background jobs
-
-Then:
-
-SharePoint API
-X
-│
-▼
-Alert
-│
-▼
-Operations team
-
-instead of discovering it three hours later from a customer email.
-
-30. Backup architecture
-
-For customer operational data:
-
-Primary Database
-│
-├── Automated backups
-├── Point-in-time recovery
-└── Disaster recovery
-
-But remember:
-
-SharePoint documents are a separate concern.
-
-Your platform should clearly define whether the customer's existing Microsoft 365/SharePoint policies constitute the document backup strategy.
-
-You don't want the contract to ambiguously imply:
-
-"PortCalls backs up your SharePoint."
-
-unless you actually provide that service.
-
-31. Deployment architecture
-
-For SaaS:
+20. DEPLOYMENT
 
                    Internet
                       │
@@ -1069,159 +323,49 @@ For SaaS:
                      │
               ┌──────┴──────┐
               ▼             ▼
-           Cache         Object/File
-                         Storage
-
-External integrations:
+           Cache      Object/File Storage
 
                   Integration Layer
                          │
           ┌──────────────┼──────────────┐
           ▼              ▼              ▼
-     SharePoint       Email          Payments
 
-33. Recommended complete architecture
+    SharePoint Email Payments
 
-Putting everything together:
+21. ARQUITETURA CONSOLIDADA
 
-                         ┌─────────────────────┐
-                         │      WEBSITE        │
-                         │ Demo / Pricing      │
-                         └──────────┬──────────┘
-                                    │
-                                    ▼
-                         ┌─────────────────────┐
-                         │   SALES / CRM       │
-                         │ Leads / Proposals   │
-                         └──────────┬──────────┘
-                                    │
-                              Contract/Payment
-                                    │
-                                    ▼
+                             ┌─────────────────────┐
+                             │      WEBSITE        │
+                             └──────────┬──────────┘
+                                        ▼
+                             ┌─────────────────────┐
+                             │   CRM EXTERNO       │
+                             └──────────┬──────────┘
+                                  Contract/Payment
+                                        ▼
 
-┌─────────────────────────────────────────────────────────┐
-│ CONTROL PLANE │
-│ │
-│ Identity │ Tenants │ Billing │ Licensing │ Onboarding │
-│ │
-└──────────────────────────┬──────────────────────────────┘
-│
-Provisioning
-│
-▼
-┌─────────────────────────────────────────────────────────┐
-│ PORTCALLS PLATFORM │
-│ │
-│ ┌───────────┐ ┌────────────┐ ┌─────────────┐ │
-│ │ Identity │ │ Operations │ │ Documents │ │
-│ └───────────┘ └────────────┘ └─────────────┘ │
-│ │
-│ ┌───────────┐ ┌────────────┐ ┌─────────────┐ │
-│ │ Finance │ │ Reporting │ │ Notifications│ │
-│ └───────────┘ └────────────┘ └─────────────┘ │
-│ │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Integration Layer │ │
-│ └─────────────────────────────────────────────────────┘ │
-└──────────────────────────┬──────────────────────────────┘
-│
-┌─────────────┼─────────────┐
-│ │ │
-▼ ▼ ▼
-PostgreSQL SharePoint External APIs
-Customer Data Documents Payments/etc.
-
-34. The customer journey inside this architecture
-
-The entire process you described becomes:
-
-1. REQUEST DEMO
-   ↓
-2. LEAD
-   ↓
-3. QUALIFICATION
-   ↓
-4. DEMO
-   ↓
-5. TECHNICAL DISCOVERY
-   ↓
-6. PLAN SELECTION
-   ↓
-7. PROPOSAL
-   ↓
-8. CONTRACT
-   ↓
-9. PAYMENT
-   ↓
-10. CUSTOMER CREATED
-    ↓
-11. TENANT PROVISIONED
-    ↓
-12. SETUP WIZARD
-    ↓
-13. SHAREPOINT CONNECTED
-    ↓
-14. USERS CONFIGURED
-    ↓
-15. DATA IMPORT / INITIAL CONFIG
-    ↓
-16. TRAINING
-    ↓
-17. GO LIVE
-    ↓
-18. DAILY OPERATIONS
-    ↓
-19. BILLING
-    ↓
-20. SUPPORT
-    ↓
-21. RENEWAL
-
-The key is that each arrow represents a controlled state transition, rather than a manual collection of unrelated steps.
-
-35. The three products you're actually building
-
-One reason this architecture matters is that PortCalls is really three systems:
-
-1. The product
-   PortCalls
-
-What the customer uses every day.
-
-2. The platform
-   Tenants
-   Identity
-   Billing
-   Licensing
-   Provisioning
-   Integrations
-
-What allows you to sell PortCalls repeatedly.
-
-3. The infrastructure
-   Database
-   Storage
-   Queues
-   Backups
-   Monitoring
-   Deployment
-
-What makes the platform reliable.
-
-So the actual architecture is:
-
-                 PORTCALLS
-                     │
-        ┌────────────┼────────────┐
-        ▼            ▼            ▼
-     PRODUCT      PLATFORM    INFRASTRUCTURE
-        │            │            │
-
-Operations SaaS Deployment
-Documents Billing Database
-Processes License Storage
-Dashboard Tenants Backups
-Users Monitoring
-Onboarding
-
-That is the architecture I would build toward.
+    ┌─────────────────────────────────────────────────────────┐
+    │ CONTROL PLANE │
+    │ Identity │ Tenants │ Billing │ Licensing │ Onboarding │
+    └──────────────────────────┬──────────────────────────────┘
+    Provisioning
+    ▼
+    ┌─────────────────────────────────────────────────────────┐
+    │ PORTCALLS PLATFORM │
+    │ ┌───────────┐ ┌────────────┐ ┌─────────────┐ │
+    │ │ Identity │ │ Operations │ │ Documents │ │
+    │ └───────────┘ └────────────┘ └─────────────┘ │
+    │ ┌───────────┐ ┌────────────┐ ┌─────────────┐ │
+    │ │ Finance │ │ Reporting │ │Notifications│ │
+    │ └───────────┘ └────────────┘ └─────────────┘ │
+    │ ┌───────────┐ ┌────────────────────────────┐ │
+    │ │ Audit │ │ Outbox / Event Relay │ │
+    │ └───────────┘ └────────────────────────────┘ │
+    │ ┌─────────────────────────────────────────────────────┐ │
+    │ │ Integration Layer (Circuit Breaker + Cache) │ │
+    │ └─────────────────────────────────────────────────────┘ │
+    │ RLS enforced em todas as tabelas com tenantId │
+    └──────────────────────────┬──────────────────────────────┘
+    ┌──────────────┼──────────────┐
+    ▼ ▼ ▼
+    PostgreSQL SharePoint External APIs
