@@ -222,7 +222,7 @@ await test('dashboard summary + monthly CSV report', async () => {
   const T = 'bdbdbdbd-bdbd-4bdb-8bdb-bdbdbdbdbdbd';
   await TenantContext.run({ tenantId: T, userId: 'rep' }, async () => {
     await c.portOps.registerVessel({ name: 'Report Ship', imoNumber: '922222234', flag: 'ES', vesselType: 'ro-ro', grossTonnage: 12000 });
-    const client = await c.portOps.createClient({ name: 'Rep Co', vatNumber: 'B1234567B', email: 'r@r.es', billingAddress: 'Vigo' });
+    const client = await c.portOps.createClient({ name: 'Rep Co', vatNumber: 'PT1234567', email: 'r@r.es', billingAddress: 'Vigo' });
     const pc = await c.portOps.createPortCall({ imoNumber: '922222234', clientId: client.id, portCode: 'ES VGO', eta: '2026-09-01T00:00:00Z', etd: '2026-09-03T00:00:00Z', reference: 'REP-1' });
     await c.portOps.transition(pc.id, 'schedule'); await c.portOps.transition(pc.id, 'start');
     const overdue = await c.portOps.sweepOverdue(new Date('2026-09-02T00:00:00Z'));
