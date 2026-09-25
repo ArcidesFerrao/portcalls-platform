@@ -1,6 +1,6 @@
 // Entry point: HTTP API + minimal SSR dashboard (§16).
 import { buildContainer } from '../workers/container.js';
-import { createApp } from './lib/http.js';
+import { createApp } from './lib/http.ts';
 import { TenantContext, Membership, User } from '@portcalls/domain';
 import { hashPassword } from '@portcalls/domain';
 import { logger } from '@portcalls/infra';
