@@ -160,7 +160,7 @@ await test('circuit breaker opens after failures; cache serves stale reads', asy
   await br.exec(() => Promise.resolve(1));
   assert.equal(br.current, 'closed');
   const cache = new MetadataCache<string>(100, () => clock);
-  cache.set('k', 'v'); clock = 1400;
+  cache.set("k", "v"); clock = 1400;
   assert.equal(cache.get('k'), undefined, 'fresh read must be undefined when expired');
   assert.equal(cache.getStale('k'), 'v', 'stale read still available when upstream down');
 });

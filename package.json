@@ -2,7 +2,7 @@
   "name": "portcalls",
   "version": "0.1.0",
   "private": true,
-  "description": "PortCalls \u2014 multi-tenant port call scheduling platform (Evolure)",
+  "description": "PortCalls — multi-tenant port call scheduling platform (Evolure)",
   "workspaces": [
     "apps/*",
     "packages/domain",
@@ -25,12 +25,15 @@
     "web": "next dev apps/web"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
+    "@types/node": "^20.11.0",
     "tsx": "^4.7.0",
-    "@types/node": "^20.11.0"
+    "typescript": "^5.4.0"
   },
   "engines": {
     "node": ">=20"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  }
 }
