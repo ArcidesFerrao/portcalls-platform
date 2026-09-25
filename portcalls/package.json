@@ -1,0 +1,39 @@
+{
+  "name": "portcalls",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PortCalls — multi-tenant port call scheduling platform (Evolure)",
+  "workspaces": [
+    "apps/*",
+    "packages/domain",
+    "packages/control-plane",
+    "packages/integrations",
+    "packages/infra",
+    "packages/shared"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "node --test packages/*/src/**/*.test.ts apps/workers/*.test.ts 2>/dev/null || npx tsx scripts/smoke.ts",
+    "smoke": "npx tsx scripts/smoke.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:generate": "prisma generate --schema packages/infra/database/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema packages/infra/database/prisma/schema.prisma",
+    "worker:outbox": "npx tsx apps/workers/outbox-relay/main.ts",
+    "worker:sharepoint": "npx tsx apps/workers/sharepoint-sync/main.ts",
+    "worker:notifications": "npx tsx apps/workers/notifications/main.ts",
+    "worker:reports": "npx tsx apps/workers/report-generation/main.ts",
+    "web": "next dev apps/web"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  }
+}

@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# Temp/Debug files
+_dbg.ts
+_dbg2.ts
+_dbg3.ts
+_dbg4.ts
+_smokedbg.py
+_smokedbg.ts
+_smokedbg2.ts
+_smokedbg3.ts

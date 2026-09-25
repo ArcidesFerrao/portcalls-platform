@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@portcalls/shared": ["packages/shared/src/index.ts"],
+      "@portcalls/shared/*": ["packages/shared/src/*"],
+      "@portcalls/domain": ["packages/domain/src/index.ts"],
+      "@portcalls/domain/*": ["packages/domain/src/*"],
+      "@portcalls/control-plane": ["packages/control-plane/src/index.ts"],
+      "@portcalls/control-plane/*": ["packages/control-plane/src/*"],
+      "@portcalls/integrations": ["packages/integrations/src/index.ts"],
+      "@portcalls/integrations/*": ["packages/integrations/src/*"],
+      "@portcalls/infra": ["packages/infra/src/index.ts"],
+      "@portcalls/infra/*": ["packages/infra/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "**/dist", "apps/web/.next"]
+}

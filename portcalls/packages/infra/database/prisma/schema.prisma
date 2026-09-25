@@ -1,0 +1,351 @@
+// PortCalls — PostgreSQL schema with tenantId on every table + RLS (§5, §16)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id               String   @id @default(uuid()) @db.Uuid
+  name             String
+  slug             String   @unique
+  status           String   @default("provisioning") // provisioning|active|suspended|churned
+  region           String   @default("eu-west-1")
+  storageIsolation String   @default("shared")       // shared|dedicated (§5)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  users            Membership[]
+  vessels          Vessel[]
+  portCalls        PortCall[]
+  clients          Client[]
+  documents        Document[]
+  invoices         Invoice[]
+  payments         Payment[]
+  outbox           OutboxEvent[]
+  auditEvents      AuditEvent[]
+  subscriptions    Subscription[]
+  onboardings      OnboardingRecord[]
+  licenses         License[]
+  settings         TenantSetting?
+}
+
+model TenantSetting {
+  tenantId        String  @id @db.Uuid
+  defaultPort     String  @default("PTLIS")
+  vatRatePct      Decimal @default(23) @db.Decimal(5, 2)
+  invoicePrefix   String  @default("INV")
+  sharepointSiteUrl String?
+  tenant          Tenant  @relation(fields: [tenantId], references: [id])
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  displayName  String
+  passwordHash String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  memberships  Membership[]
+  sessions     Session[]
+}
+
+model Role {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @unique // Admin | Operations | Finance | Viewer
+  permissions Permission[]
+  memberships Membership[]
+}
+
+model Permission {
+  id    String @id @default(uuid()) @db.Uuid
+  scope String @unique // e.g. portcall:create
+  roles Role[]
+}
+
+model Membership {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  userId         String   @db.Uuid
+  organizationId String   @db.Uuid
+  roleId         String   @db.Uuid
+  createdAt      DateTime @default(now())
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  user           User     @relation(fields: [userId], references: [id])
+  role           Role     @relation(fields: [roleId], references: [id])
+  @@unique([tenantId, userId, roleId])
+  @@index([tenantId])
+}
+
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id])
+  @@index([tenantId])
+}
+
+model Vessel {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @db.Uuid
+  name         String
+  imoNumber    String
+  flag         String
+  vesselType   String
+  grossTonnage Decimal   @db.Decimal(12, 2)
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  portCalls    PortCall[]
+  @@unique([tenantId, imoNumber])
+  @@index([tenantId])
+}
+
+model Client {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  name           String
+  vatNumber      String
+  email          String
+  billingAddress String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  portCalls      PortCall[]
+  invoices       Invoice[]
+  @@unique([tenantId, vatNumber])
+  @@index([tenantId])
+}
+
+model PortCall {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @db.Uuid
+  vesselId     String    @db.Uuid
+  clientId     String    @db.Uuid
+  portCode     String // UN/LOCODE
+  eta          DateTime
+  etd          DateTime
+  reference    String
+  status       String      @default("draft") // draft|scheduled|in_progress|completed|closed|cancelled
+  closedAt     DateTime?
+  cancelReason String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  tenant       Tenant      @relation(fields: [tenantId], references: [id])
+  vessel       Vessel      @relation(fields: [vesselId], references: [id])
+  client       Client      @relation(fields: [clientId], references: [id])
+  processes    Process[]
+  invoices     Invoice[]
+  activities   Activity[]
+  comments     Comment[]
+  @@index([tenantId, status])
+  @@index([tenantId, vesselId])
+}
+
+model Process {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  portCallId String   @db.Uuid
+  name       String
+  order      Int
+  portCall   PortCall @relation(fields: [portCallId], references: [id])
+  milestones Milestone[]
+  @@index([tenantId])
+}
+
+model Milestone {
+  id           String             @id @default(uuid()) @db.Uuid
+  tenantId     String             @db.Uuid
+  processId    String             @db.Uuid
+  name         String
+  authority    String // Alfândega | Capitania | Sanidade | ...
+  plannedAt    DateTime
+  order        Int
+  status       String             @default("pending") // pending|in_progress|cleared|overdue|skipped
+  completedAt  DateTime?
+  process      Process            @relation(fields: [processId], references: [id])
+  clearance    AuthorityClearance?
+  documents    Document[]         @relation("MilestoneDocs")
+  @@index([tenantId, status])
+}
+
+model AuthorityClearance {
+  id                  String    @id @default(uuid()) @db.Uuid
+  tenantId            String    @db.Uuid
+  milestoneId         String    @unique @db.Uuid
+  authority           String
+  requiredDocumentIds String[] // document type codes required by the authority
+  submittedDocumentIds String[]
+  clearedAt           DateTime?
+  milestone           Milestone @relation(fields: [milestoneId], references: [id])
+  @@index([tenantId])
+}
+
+model Document {
+  id               String     @id @default(uuid()) @db.Uuid
+  tenantId         String     @db.Uuid
+  entityType       String // portcall|process|milestone|invoice|client
+  entityId         String
+  filename         String
+  mimeType         String
+  size             Int
+  checksum         String
+  storageProvider  String // local|s3|minio|sharepoint (§7)
+  storageObjectId  String // opaque safe identifier (§11)
+  version          Int        @default(1)
+  uploadedBy       String
+  deletedAt        DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  tenant           Tenant     @relation(fields: [tenantId], references: [id])
+  milestoneFor     Milestone? @relation("MilestoneDocs", fields: [entityId], references: [id])
+  @@index([tenantId, entityType, entityId])
+}
+
+model Invoice {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @db.Uuid
+  number     String?
+  portCallId String    @db.Uuid
+  clientId   String    @db.Uuid
+  currency   String    @default("EUR")
+  lines      Json // [{description, quantity, unitPriceCents, vatRatePct}]
+  subtotalCents Int    @default(0)
+  vatCents      Int    @default(0)
+  totalCents    Int    @default(0)
+  status     String    @default("draft") // draft|issued|paid|void|overdue
+  issuedAt   DateTime?
+  dueAt      DateTime?
+  paidAt     DateTime?
+  voidReason String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  portCall   PortCall  @relation(fields: [portCallId], references: [id])
+  client     Client    @relation(fields: [clientId], references: [id])
+  payments   Payment[]
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+model Payment {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  invoiceId   String   @db.Uuid
+  amountCents Int
+  method      String // transfer|card|cash
+  reference   String
+  paidAt      DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  @@index([tenantId])
+}
+
+model Activity {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  portCallId String   @db.Uuid
+  actorId    String
+  verb       String
+  detail     Json
+  createdAt  DateTime @default(now())
+  portCall   PortCall @relation(fields: [portCallId], references: [id])
+  @@index([tenantId, portCallId])
+}
+
+model Comment {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  portCallId String   @db.Uuid
+  authorId   String
+  body       String
+  createdAt  DateTime @default(now())
+  portCall   PortCall @relation(fields: [portCallId], references: [id])
+  @@index([tenantId, portCallId])
+}
+
+// ---- Transactional Outbox (§8) -------------------------------------------
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  type        String
+  payload     Json // serialized DomainEvent (eventId is the idempotency key)
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  lastError   String?
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  @@index([publishedAt, createdAt])
+}
+
+model AuditEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  actorId      String
+  action       String
+  resourceType String
+  resourceId   String
+  detail       Json
+  ip           String?
+  createdAt    DateTime @default(now())
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  @@index([tenantId, createdAt])
+}
+
+// ---- Control Plane ---------------------------------------------------------
+model Subscription {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  plan             String // basic|professional|enterprise
+  deploymentType   String   @default("saas")
+  status           String   @default("trialing")
+  currentPeriodEnd DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  @@index([tenantId])
+}
+
+model UsageRecord {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  metric    String // portcalls|users|storage_mb
+  value     Int
+  period    String // YYYY-MM
+  createdAt DateTime @default(now())
+  @@unique([tenantId, metric, period])
+}
+
+model OnboardingRecord {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  customerName String
+  source       String // crm_webhook|manual
+  state        String   @default("LEAD")
+  history      Json // [{from,to,at,actor}]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+model License {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  payload      Json // LicensePayload (§12)
+  signature    String // Ed25519 over canonical JSON
+  status       String   @default("ACTIVE")
+  issuedAt     DateTime @default(now())
+  expiresAt    DateTime
+  graceEndsAt  DateTime
+  revokedAt    DateTime?
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  @@index([tenantId, status])
+}
