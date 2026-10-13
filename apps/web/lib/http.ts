@@ -7,11 +7,13 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { makeAudit } from '@portcalls/domain';
-import type { TenantContext, Membership, OutboxRecord, DomainEvent } from '@portcalls/domain';
+import { TenantContext, Membership, OutboxRecord, DomainEvent } from '@portcalls/domain';
 import { logger, metrics } from '@portcalls/infra';
 import { Container } from '../../workers/container.js';
 import { createHash } from 'node:crypto';
 import { MemVesselRepo } from '@portcalls/infra';
+import { buildContext } from '@portcalls/shared';
+import { enforceZeroTrust, RoleName } from '@portcalls/shared';
 
 export interface Ctx { c: Container; principal: { userId: string; tenantId: string; roles: RoleName[] } | null }
 

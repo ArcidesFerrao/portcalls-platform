@@ -11,6 +11,7 @@
     "declaration": true,
     "sourceMap": true,
     "resolveJsonModule": true,
+    "useDefineForClassFields": false,
     "baseUrl": ".",
     "paths": {
       "@portcalls/shared": ["packages/shared/src/index.ts"],

@@ -8,7 +8,9 @@ export class MetadataCache<T> {
   get(key: string): T | undefined {
     const e = this.map.get(key);
     if (!e) return undefined;
-    if (e.expiresAt < this.now()) { this.map.delete(key); return undefined; }
+    // Expired entries are hidden from fresh reads but KEPT in the map so that
+    // getStale() can still serve them while upstream (SharePoint) is down (§7).
+    if (e.expiresAt <= this.now()) return undefined;
     return e.value;
   }
   /** Stale entry still returned on upstream failure ("leitura mesmo com SharePoint em baixo"). */

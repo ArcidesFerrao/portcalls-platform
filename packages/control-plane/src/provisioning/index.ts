@@ -37,7 +37,10 @@ export class ProvisioningService {
 
     const ob = new Onboarding(req.customerName, 'crm_webhook');
     ob.tenantId = tenant.id;
-    for (const step of ['QUALIFIED', 'ACCEPTED', 'PAID', 'PROVISIONING'] as const) ob.transition(step, 'provisioning-service');
+    // Walk the full §14 state machine up to PROVISIONING (legal transitions only).
+    for (const step of ['QUALIFIED', 'DEMO', 'PROPOSAL', 'ACCEPTED', 'PAYMENT_PENDING', 'PAID', 'PROVISIONING'] as const) {
+      ob.transition(step, 'provisioning-service');
+    }
     await this.ports.persistOnboarding(ob);
 
     const adminUserId = await this.ports.createAdminUser(tenant.id, req.adminEmail, req.adminName);

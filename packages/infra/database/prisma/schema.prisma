@@ -28,6 +28,7 @@ model Tenant {
   auditEvents      AuditEvent[]
   subscriptions    Subscription[]
   onboardings      OnboardingRecord[]
+  licenses         License[]
   settings         TenantSetting?
 }
 
